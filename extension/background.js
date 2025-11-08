@@ -1,5 +1,40 @@
 const OPENAI_ENDPOINT = "https://api.openai.com/v1/chat/completions";
-const MODEL = "gpt-4o-mini";
+const DEFAULT_OPENAI_MODEL = "gpt-4o-mini";
+const DEFAULT_PROVIDER = "openai";
+const DEFAULT_OLLAMA_BASE_URL = "http://localhost:11434";
+const DEFAULT_OLLAMA_MODEL = "llama3.1";
+
+function getSettings() {
+  return new Promise((resolve) => {
+    chrome.storage.local.get(
+      [
+        "provider",
+        "openaiApiKey",
+        "openaiModel",
+        "ollamaBaseUrl",
+        "ollamaModel",
+      ],
+      (result) => {
+        if (chrome.runtime.lastError) {
+          console.error("Failed to read settings", chrome.runtime.lastError);
+          resolve({});
+          return;
+        }
+        resolve(result || {});
+      }
+    );
+  });
+}
+
+function normalizeBaseUrl(value) {
+  try {
+    const url = new URL(value);
+    return url.toString().replace(/\/$/, "");
+  } catch (error) {
+    console.warn("Invalid base URL provided for Ollama, using default.", error);
+    return DEFAULT_OLLAMA_BASE_URL;
+  }
+}
 
 function getApiKey() {
   return new Promise((resolve) => {
@@ -34,13 +69,15 @@ function detectLanguage(text) {
   });
 }
 
-async function translateText(text, sourceLanguage) {
-  const apiKey = await getApiKey();
+async function translateWithOpenAI(prompt, settings) {
+  const apiKey = settings.openaiApiKey || (await getApiKey());
   if (!apiKey) {
-    throw new Error("OpenAI API key is not set. Please add it in the extension options page.");
+    throw new Error(
+      "OpenAI API key is not set. Please add it in the extension options page."
+    );
   }
 
-  const prompt = `Translate the following ${sourceLanguage} text to natural, concise English suitable for Twitch chat.\nProvide only the translation without additional commentary or formatting.\n\nText: ${text}`;
+  const model = settings.openaiModel?.trim() || DEFAULT_OPENAI_MODEL;
 
   const response = await fetch(OPENAI_ENDPOINT, {
     method: "POST",
@@ -49,7 +86,7 @@ async function translateText(text, sourceLanguage) {
       Authorization: `Bearer ${apiKey}`,
     },
     body: JSON.stringify({
-      model: MODEL,
+      model,
       messages: [
         {
           role: "system",
@@ -75,6 +112,71 @@ async function translateText(text, sourceLanguage) {
     throw new Error("No translation received from OpenAI.");
   }
   return translation;
+}
+
+async function translateWithOllama(prompt, settings) {
+  const baseUrl = normalizeBaseUrl(
+    settings.ollamaBaseUrl?.trim() || DEFAULT_OLLAMA_BASE_URL
+  );
+  const model = settings.ollamaModel?.trim() || DEFAULT_OLLAMA_MODEL;
+  const endpoint = `${baseUrl}/api/chat`;
+
+  const response = await fetch(endpoint, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model,
+      messages: [
+        {
+          role: "system",
+          content: "You are a translation engine that outputs only the translated text in English.",
+        },
+        {
+          role: "user",
+          content: prompt,
+        },
+      ],
+      stream: false,
+    }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Ollama API error: ${errorText}`);
+  }
+
+  const data = await response.json();
+  const content = data?.message?.content;
+  let translation = null;
+
+  if (Array.isArray(content)) {
+    translation = content
+      .map((part) => (typeof part === "string" ? part : part?.text || ""))
+      .join("")
+      .trim();
+  } else if (typeof content === "string") {
+    translation = content.trim();
+  }
+
+  if (!translation) {
+    throw new Error("No translation received from Ollama.");
+  }
+  return translation;
+}
+
+async function translateText(text, sourceLanguage) {
+  const settings = await getSettings();
+  const provider = settings.provider || DEFAULT_PROVIDER;
+
+  const prompt = `Translate the following ${sourceLanguage} text to natural, concise English suitable for Twitch chat.\nProvide only the translation without additional commentary or formatting.\n\nText: ${text}`;
+
+  if (provider === "ollama") {
+    return translateWithOllama(prompt, settings);
+  }
+
+  return translateWithOpenAI(prompt, settings);
 }
 
 const pendingRequests = new Map();
