@@ -25,7 +25,8 @@
       }
 
       input[type='password'],
-      input[type='text'] {
+      input[type='text'],
+      select {
         width: 100%;
         padding: 10px 12px;
         border-radius: 6px;
@@ -33,6 +34,18 @@
         background: #18181b;
         color: inherit;
         box-sizing: border-box;
+      }
+
+      .provider-section {
+        margin-top: 20px;
+        padding: 16px;
+        border-radius: 8px;
+        background: #1f1f23;
+        border: 1px solid #3a3a3d;
+      }
+
+      .provider-section.hidden {
+        display: none;
       }
 
       button {
@@ -66,16 +79,42 @@
     <main>
       <h1>Twitch Chat Translator</h1>
       <p>
-        Enter your OpenAI API key. The key is stored locally in your browser using
-        <code>chrome.storage.local</code> and is only used to call the ChatGPT API for
-        translations.
+        Choose your translation provider and configure the settings below. All information is
+        stored locally in your browser using <code>chrome.storage.local</code>.
       </p>
-      <label for="apiKey">OpenAI API Key</label>
-      <input id="apiKey" type="password" autocomplete="off" placeholder="sk-..." />
-      <button id="save">Save API Key</button>
+
+      <label for="provider">Translation Provider</label>
+      <select id="provider">
+        <option value="openai">OpenAI</option>
+        <option value="ollama">Ollama (local)</option>
+      </select>
+
+      <section id="openaiSettings" class="provider-section">
+        <p>
+          Enter your OpenAI API key. The key is used to call the Chat Completions API for
+          translations.
+        </p>
+        <label for="apiKey">OpenAI API Key</label>
+        <input id="apiKey" type="password" autocomplete="off" placeholder="sk-..." />
+        <label for="openaiModel">OpenAI Model</label>
+        <input id="openaiModel" type="text" autocomplete="off" placeholder="gpt-4o-mini" />
+      </section>
+
+      <section id="ollamaSettings" class="provider-section hidden">
+        <p>
+          Provide the details for your local Ollama instance. The default URL is
+          <code>http://localhost:11434</code>.
+        </p>
+        <label for="ollamaBaseUrl">Ollama Base URL</label>
+        <input id="ollamaBaseUrl" type="text" autocomplete="off" placeholder="http://localhost:11434" />
+        <label for="ollamaModel">Ollama Model</label>
+        <input id="ollamaModel" type="text" autocomplete="off" placeholder="llama3.1" />
+      </section>
+
+      <button id="save">Save Settings</button>
       <div id="status" role="status" aria-live="polite"></div>
       <p>
-        Need an API key? Visit the
+        Need an OpenAI API key? Visit the
         <a href="https://platform.openai.com/account/api-keys" target="_blank" rel="noopener"
           >OpenAI dashboard</a
         >.
