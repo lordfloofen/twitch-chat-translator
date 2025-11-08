@@ -1,0 +1,24 @@
+{
+  "manifest_version": 3,
+  "name": "Twitch Chat Translator",
+  "description": "Detects non-English Twitch chat messages and translates them to English using ChatGPT.",
+  "version": "1.0.0",
+  "permissions": [
+    "storage",
+    "i18n"
+  ],
+  "host_permissions": [
+    "https://www.twitch.tv/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "options_page": "options.html",
+  "content_scripts": [
+    {
+      "matches": ["https://www.twitch.tv/*"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}
